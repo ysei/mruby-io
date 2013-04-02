@@ -17,7 +17,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
-#include <pwd.h>
+#ifndef _WIN32
+# include <pwd.h>
+#endif
 
 #define FILE_SEPARATOR "/"
 
@@ -35,6 +37,28 @@
 #endif
 
 #define STAT(p, s)        stat(p, s)
+
+#ifdef _WIN32
+static char*
+realpath(const char *path, char *resolved_path) {
+    char tmp[MAX_PATH + 1], *p;
+    strncpy(tmp, path, sizeof(tmp)-1);
+    p = tmp;
+    while(*p) {
+        if (*p == '/') *p = '\\';
+        p++;
+    }
+    return _fullpath((char*) tmp, resolved_path, MAX_PATH);
+}
+
+struct passwd {
+  char* pw_dir;
+};
+struct passwd*
+getpwnam(const char* user) {
+  return NULL;
+}
+#endif
 
 mrb_value
 mrb_file_s_umask(mrb_state *mrb, mrb_value klass)

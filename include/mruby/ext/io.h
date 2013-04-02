@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+#ifdef _WIN32
+# include <ws2tcpip.h>
+#endif
 #include <errno.h>
 
 #include <unistd.h>
@@ -16,7 +19,9 @@ extern "C" {
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
+#ifndef _WIN32
+# include <sys/wait.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>

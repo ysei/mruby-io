@@ -119,7 +119,7 @@ mrb_io_flags_to_modenum(mrb_state *mrb, int flags)
   }
 #ifdef O_BINARY
   if (flags & FMODE_BINMODE) {
-    modenum |= O_BINARY
+    modenum |= O_BINARY;
   }
 #endif
 
@@ -194,6 +194,8 @@ mrb_io_s_popen(mrb_state *mrb, mrb_value klass)
 
   struct mrb_io *fptr;
   const char *pname;
+
+#ifndef _WIN32
   int pid, flags, fd, write_fd = -1;
   int pr[2], pw[2];
   int doexec;
@@ -295,6 +297,97 @@ retry:
         return io;
       }
   }
+#else
+  int flags;
+  STARTUPINFOA si;
+  PROCESS_INFORMATION pi;
+  BOOL ret;
+  HANDLE ord, owr;
+  HANDLE ird, iwr;
+
+  mrb_get_args(mrb, "S|SH", &cmd, &mode, &opt);
+  io = mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(klass), NULL, &mrb_io_type));
+
+  pname = mrb_string_value_cstr(mrb, &cmd);
+  flags = mrb_io_modestr_to_flags(mrb, mrb_string_value_cstr(mrb, &mode));
+
+  if(!CreatePipe(&ord, &owr, NULL, 0)) {
+    return mrb_nil_value();
+  }
+
+  if(!CreatePipe(&ird, &iwr, NULL, 0)) {
+    CloseHandle(ord);
+    CloseHandle(owr);
+    return mrb_nil_value();
+  }
+
+#ifdef NT
+  SetHandleInformation(
+    owr,
+    HANDLE_FLAG_INHERIT,
+    HANDLE_FLAG_INHERIT);
+  SetHandleInformation(
+    ird,
+    HANDLE_FLAG_INHERIT,
+    HANDLE_FLAG_INHERIT);
+#else
+  DuplicateHandle(
+    GetCurrentProcess(),
+    owr,
+    GetCurrentProcess(),
+    &owr,
+    0,
+    TRUE,
+    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
+  DuplicateHandle(
+    GetCurrentProcess(),
+    ird,
+    GetCurrentProcess(),
+    &ird,
+    0,
+    TRUE,
+    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
+#endif
+
+  memset(&si,0,sizeof(STARTUPINFOA));
+  si.cb         = sizeof(STARTUPINFOA);
+  si.dwFlags    = STARTF_USESTDHANDLES;
+  if (flags & FMODE_WRITABLE) si.hStdInput  = ird;
+  if (flags & FMODE_READABLE) si.hStdOutput = owr;
+  si.hStdError  = owr;
+
+  ret = CreateProcessA(
+      NULL,
+      (char*) pname,
+      NULL,
+      NULL,
+      TRUE,
+      NORMAL_PRIORITY_CLASS | DETACHED_PROCESS,
+      NULL,
+      NULL,
+      &si,
+      &pi);
+  if(ret) {
+    CloseHandle(pi.hThread);
+
+    CloseHandle(ird);
+    CloseHandle(owr);
+
+    mrb_iv_set(mrb, io, mrb_intern(mrb, "@buf"), mrb_str_new_cstr(mrb, ""));
+    mrb_iv_set(mrb, io, mrb_intern(mrb, "@pos"), mrb_fixnum_value(0));
+
+    fptr = mrb_io_alloc(mrb);
+    fptr->fd   = _open_osfhandle((intptr_t) ord, _O_RDONLY);
+    fptr->fd2  = _open_osfhandle((intptr_t) iwr, _O_APPEND);
+    fptr->pid  = pi.dwProcessId;
+
+    DATA_TYPE(io) = &mrb_io_type;
+    DATA_PTR(io)  = fptr;
+    return io;
+  }
+  CloseHandle(ird);
+  CloseHandle(owr);
+#endif
 
   return mrb_nil_value();
 }

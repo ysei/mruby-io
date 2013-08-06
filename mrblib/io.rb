@@ -55,7 +55,8 @@ class IO
   end
 
   def eof?
-    # XXX: @buf のことを考えなくてよい？？
+    return true if @buf && @buf.size > 0
+
     ret = false
     char = ''
 
@@ -262,10 +263,49 @@ class IO
     nil
   end
 
+  def print(*args)
+    i = 0
+    len = args.size
+    while i < len
+      write args[i].to_s
+      i += 1
+    end
+  end
+
   def printf(*args)
     write sprintf(*args)
     nil
   end
 
   alias_method :to_i, :fileno
+end
+
+STDIN  = IO.open(0, "r")
+STDOUT = IO.open(1, "w")
+STDERR = IO.open(1, "w")
+
+$stdin  = STDIN
+$stdout = STDOUT
+$stderr = STDERR
+
+module Kernel
+  def print(*args)
+    STDOUT.print(*args)
+  end
+
+  def puts(*args)
+    STDOUT.puts(*args)
+  end
+
+  def printf(*args)
+    STDOUT.printf(*args)
+  end
+
+  def gets(*args)
+    STDIN.gets(*args)
+  end
+
+  def getc(*args)
+    STDIN.getc(*args)
+  end
 end

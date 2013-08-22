@@ -23,7 +23,7 @@
 extern struct mrb_data_type mrb_io_type;
 
 static int
-mrb_stat(mrb_state *mrb, mrb_value obj, struct stat *st)
+mrb_stat0(mrb_state *mrb, mrb_value obj, struct stat *st, int do_lstat)
 {
   mrb_value tmp;
   mrb_value io_klass, str_klass;
@@ -46,10 +46,26 @@ mrb_stat(mrb_state *mrb, mrb_value obj, struct stat *st)
 
   tmp = mrb_funcall(mrb, obj, "is_a?", 1, str_klass);
   if (mrb_test(tmp)) {
-    return stat(mrb_string_value_cstr(mrb, &obj), st);
+    if (do_lstat) {
+      return lstat(mrb_str_to_cstr(mrb, obj), st);
+    } else {
+      return stat(mrb_str_to_cstr(mrb, obj), st);
+    }
   }
 
   return -1;
+}
+
+static int
+mrb_stat(mrb_state *mrb, mrb_value obj, struct stat *st)
+{
+  return mrb_stat0(mrb, obj, st, 0);
+}
+
+static int
+mrb_lstat(mrb_state *mrb, mrb_value obj, struct stat *st)
+{
+  return mrb_stat0(mrb, obj, st, 1);
 }
 
 /*
@@ -144,7 +160,7 @@ mrb_filetest_s_symlink_p(mrb_state *mrb, mrb_value klass)
 
   mrb_get_args(mrb, "o", &obj);
 
-  if (mrb_stat(mrb, obj, &st) < 0)
+  if (mrb_lstat(mrb, obj, &st) == -1)
     return mrb_false_value();
   if (S_ISLNK(st.st_mode))
     return mrb_true_value();

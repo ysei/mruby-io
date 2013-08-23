@@ -47,7 +47,11 @@ mrb_stat0(mrb_state *mrb, mrb_value obj, struct stat *st, int do_lstat)
   tmp = mrb_funcall(mrb, obj, "is_a?", 1, str_klass);
   if (mrb_test(tmp)) {
     if (do_lstat) {
+#ifdef _WIN32
+      mrb_raise(mrb, E_NOTIMP_ERROR, "Windows doesn't have lstat");
+#else
       return lstat(mrb_str_to_cstr(mrb, obj), st);
+#endif
     } else {
       return stat(mrb_str_to_cstr(mrb, obj), st);
     }

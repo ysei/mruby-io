@@ -288,9 +288,9 @@ retry:
         mrb_iv_set(mrb, io, mrb_intern_cstr(mrb, "@pos"), mrb_fixnum_value(0));
 
         fptr = mrb_io_alloc(mrb);
-        fptr->fd   = fd;
-        fptr->fd2  = write_fd;
-        fptr->pid  = pid;
+        fptr->fd  = fd;
+        fptr->fd2 = write_fd;
+        fptr->pid = pid;
 
         DATA_TYPE(io) = &mrb_io_type;
         DATA_PTR(io)  = fptr;

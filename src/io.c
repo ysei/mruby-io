@@ -29,7 +29,7 @@ mrb_io_modestr_to_flags(mrb_state *mrb, const char *mode)
       flags |= FMODE_READABLE;
       break;
     case 'w':
-      flags |= FMODE_WRITABLE | FMODE_CREATE;
+      flags |= FMODE_WRITABLE | FMODE_CREATE | FMODE_TRUNC;
       break;
     case 'a':
       flags |= FMODE_WRITABLE | FMODE_APPEND | FMODE_CREATE;
@@ -197,7 +197,8 @@ mrb_io_s_popen(mrb_state *mrb, mrb_value klass)
 
 #ifndef _WIN32
   int pid, flags, fd, write_fd = -1;
-  int pr[2], pw[2];
+  int pr[2] = { -1, -1 };
+  int pw[2] = { -1, -1 };
   int doexec;
 
   mrb_get_args(mrb, "S|SH", &cmd, &mode, &opt);
@@ -208,10 +209,13 @@ mrb_io_s_popen(mrb_state *mrb, mrb_value klass)
 
   doexec = (strcmp("-", pname) != 0);
 
-  if (((flags & FMODE_READABLE) && pipe(pr) == -1)
-      || ((flags & FMODE_WRITABLE) && pipe(pw) == -1)) {
-    mrb_sys_fail(mrb, "pipe_open failed.");
-    return mrb_nil_value();
+  if ((flags & FMODE_READABLE) && pipe(pr) == -1) {
+    mrb_sys_fail(mrb, "pipe");
+  }
+  if ((flags & FMODE_WRITABLE) && pipe(pw) == -1) {
+    if (pr[0] != -1) close(pr[0]);
+    if (pr[1] != -1) close(pr[1]);
+    mrb_sys_fail(mrb, "pipe");
   }
 
   if (!doexec) {
@@ -492,6 +496,8 @@ mrb_io_s_sysopen(mrb_state *mrb, mrb_value klass)
 
   flags = mrb_io_modestr_to_flags(mrb, mrb_string_value_cstr(mrb, &mode));
   fd = io_open(mrb, path, flags, perm);
+  if (fd == -1)
+    mrb_sys_fail(mrb, mrb_str_to_cstr(mrb, path));
 
   return mrb_fixnum_value(fd);
 }
@@ -566,7 +572,7 @@ mrb_io_syswrite(mrb_state *mrb, mrb_value io)
 {
   struct mrb_io *fptr;
   mrb_value str, buf;
-  int length;
+  int fd, length;
 
   mrb_get_args(mrb, "S", &str);
   if (mrb_type(str) != MRB_TT_STRING) {
@@ -576,7 +582,12 @@ mrb_io_syswrite(mrb_state *mrb, mrb_value io)
   }
 
   fptr = (struct mrb_io *)mrb_get_datatype(mrb, io, &mrb_io_type);
-  length = write(fptr->fd, RSTRING_PTR(buf), RSTRING_LEN(buf));
+  if (fptr->fd2 == -1) {
+    fd = fptr->fd;
+  } else {
+    fd = fptr->fd2;
+  }
+  length = write(fd, RSTRING_PTR(buf), RSTRING_LEN(buf));
 
   return mrb_fixnum_value(length);
 }

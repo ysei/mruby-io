@@ -153,7 +153,10 @@ class IO
       rs = $/
       limit = arg
     else
-      raise ArgumentError
+      unless arg
+        raise ArgumentError
+      end
+      rs = arg.to_s
     end
 
     if rs.nil?

@@ -199,10 +199,10 @@ class IO
   end
 
   def readline(arg = $/, limit = nil)
-    case arg
-    when String
+    case arg.class.to_s
+    when "String"
       rs = arg
-    when Fixnum
+    when "Fixnum"
       rs = $/
       limit = arg
     else
